@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	sigsdk "github.com/MultiAdaptive/sig-sdk"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -147,7 +148,6 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData) (*in
 	if err != nil {
 		return nil, err
 	}
-
 	inscriptionBuilder := txscript.NewScriptBuilder().
 		AddData(schnorr.SerializePubKey(privateKey1.PubKey())).
 		AddOp(txscript.OP_CHECKSIG).
@@ -178,6 +178,17 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData) (*in
 	if err != nil {
 		return nil, err
 	}
+
+	// disasm, err := txscript.DisasmString(inscriptionScript)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// fmt.Println("disasm:", disasm)
+	// scriptElements := strings.Split(disasm, " ")
+	// fmt.Println("elements num:", len(scriptElements))
+	// fmt.Println("element index 5: ", scriptElements[5])
+
 	// to skip txscript.MaxScriptSize 10000
 	inscriptionScript = append(inscriptionScript, txscript.OP_ENDIF)
 
@@ -394,12 +405,20 @@ func (tool *InscriptionTool) completeRevealTx() error {
 			return err
 		}
 
-		signature2, err := schnorr.Sign(tool.txCtxDataList[i].privateKey2, witnessArray)
+		// signature2, err := schnorr.Sign(tool.txCtxDataList[i].privateKey2, witnessArray)
+		// if err != nil {
+		// 	return err
+		// }
+		var commitTxBuf bytes.Buffer
+		tool.commitTx.Serialize(&commitTxBuf)
+		var revealTxBuf bytes.Buffer
+		revealTx.Serialize(&revealTxBuf)
+		cm := "OP_CHECKSIG"
+		signature2, err := sigsdk.SigWithSchnorr([]byte(cm), tool.txCtxDataList[i].privateKey2.Serialize(), commitTxBuf.Bytes(), revealTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
 		if err != nil {
 			return err
 		}
-
-		witnessList[i] = wire.TxWitness{signature2.Serialize(), signature1.Serialize(), tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
+		witnessList[i] = wire.TxWitness{signature2, signature1.Serialize(), tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
 	}
 	for i := range witnessList {
 		if len(tool.revealTx) == 1 {
