@@ -18,6 +18,7 @@ import (
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	"github.com/vincentdebug/go-ord-tx/pkg/btcapi"
 	extRpcClient "github.com/vincentdebug/go-ord-tx/pkg/rpcclient"
@@ -27,6 +28,13 @@ type InscriptionData struct {
 	ContentType string
 	Body        []byte
 	Destination string
+}
+
+// MultiAdaptive broadcast node info
+type SignNodeInfo struct {
+	PublicKey *btcec.PublicKey
+	RpcClient *rpc.Client
+	Index     uint
 }
 
 type InscriptionRequest struct {
@@ -40,6 +48,7 @@ type InscriptionRequest struct {
 	SingleRevealTxOnly bool // Currently, the official Ordinal parser can only parse a single NFT per transaction.
 	// When the official Ordinal parser supports parsing multiple NFTs in the future, we can consider using a single reveal transaction.
 	RevealOutValue int64
+	SignNodes      []*SignNodeInfo
 }
 
 type inscriptionTxCtxData struct {
@@ -127,7 +136,7 @@ func (tool *InscriptionTool) _initTool(net *chaincfg.Params, request *Inscriptio
 	if err != nil {
 		return err
 	}
-	err = tool.completeRevealTx()
+	err = tool.completeRevealTx(request.SignNodes, request.DataList)
 	if err != nil {
 		return err
 	}
@@ -375,7 +384,7 @@ func (tool *InscriptionTool) buildCommitTx(commitTxOutPointList []*wire.OutPoint
 	return nil
 }
 
-func (tool *InscriptionTool) completeRevealTx() error {
+func (tool *InscriptionTool) completeRevealTx(signNodes []*SignNodeInfo, inscriptions []InscriptionData) error {
 	for i := range tool.txCtxDataList {
 		tool.revealTxPrevOutputFetcher.AddPrevOut(wire.OutPoint{
 			Hash:  tool.commitTx.TxHash(),
@@ -405,19 +414,20 @@ func (tool *InscriptionTool) completeRevealTx() error {
 			return err
 		}
 
-		// signature2, err := schnorr.Sign(tool.txCtxDataList[i].privateKey2, witnessArray)
-		// if err != nil {
-		// 	return err
-		// }
 		var commitTxBuf bytes.Buffer
 		tool.commitTx.Serialize(&commitTxBuf)
 		var revealTxBuf bytes.Buffer
 		revealTx.Serialize(&revealTxBuf)
-		cm := "OP_CHECKSIG"
-		signature2, err := sigsdk.SigWithSchnorr([]byte(cm), tool.txCtxDataList[i].privateKey2.Serialize(), commitTxBuf.Bytes(), revealTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+		cm := inscriptions[i].Body
+		signature2, err := sigsdk.SigWithSchnorr([]byte(hex.EncodeToString(cm)), tool.txCtxDataList[i].privateKey2.Serialize(), commitTxBuf.Bytes(), revealTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
 		if err != nil {
 			return err
 		}
+
+		// var signature schnorr.Signature
+		// sigNode := signNodes[0]
+		// sigNode.RpcClient.CallContext(context.Background(), &signature, "signature", []byte(cm), tool.txCtxDataList[i].privateKey2.Serialize(), commitTxBuf.Bytes(), revealTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+
 		witnessList[i] = wire.TxWitness{signature2, signature1.Serialize(), tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
 	}
 	for i := range witnessList {
