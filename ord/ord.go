@@ -188,17 +188,6 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData) (*in
 		return nil, err
 	}
 
-	// disasm, err := txscript.DisasmString(inscriptionScript)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// fmt.Println("disasm:", disasm)
-	// scriptElements := strings.Split(disasm, " ")
-	// fmt.Println("elements num:", len(scriptElements))
-	// fmt.Println("element index 5: ", scriptElements[5])
-
-	// to skip txscript.MaxScriptSize 10000
 	inscriptionScript = append(inscriptionScript, txscript.OP_ENDIF)
 
 	leafNode := txscript.NewBaseTapLeaf(inscriptionScript)
