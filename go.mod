@@ -26,7 +26,6 @@ require (
 )
 
 require (
-	github.com/MultiAdaptive/sig-sdk v0.1.1
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd // indirect
@@ -38,4 +37,4 @@ require (
 	golang.org/x/sys v0.20.0 // indirect
 )
 
-replace github.com/MultiAdaptive/sig-sdk => ../sig-sdk
+//replace github.com/MultiAdaptive/sig-sdk => ../sig-sdk

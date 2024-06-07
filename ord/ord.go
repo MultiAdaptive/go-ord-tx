@@ -2,11 +2,11 @@ package ord
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"log"
 
-	sigsdk "github.com/MultiAdaptive/sig-sdk"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -18,6 +18,7 @@ import (
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	"github.com/vincentdebug/go-ord-tx/pkg/btcapi"
@@ -25,9 +26,11 @@ import (
 )
 
 type InscriptionData struct {
-	ContentType string
-	Body        []byte
-	Destination string
+	ContentType       string
+	Body              []byte
+	ProofH            []byte
+	ProofClaimedValue []byte
+	Destination       string
 }
 
 // MultiAdaptive broadcast node info
@@ -157,10 +160,14 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData) (*in
 	if err != nil {
 		return nil, err
 	}
+	pubkeyHexOfSigNode := "020b0bae055c4e33c8561c080e8dd6c80b9f40f4a7fdf406c8c1da3b68dbc8a9f2"
+	pubkeyHex, _ := hex.DecodeString(pubkeyHexOfSigNode)
+	newPubKey, _ := btcec.ParsePubKey(pubkeyHex)
+
 	inscriptionBuilder := txscript.NewScriptBuilder().
 		AddData(schnorr.SerializePubKey(privateKey1.PubKey())).
 		AddOp(txscript.OP_CHECKSIG).
-		AddData(schnorr.SerializePubKey(privateKey2.PubKey())).
+		AddData(schnorr.SerializePubKey(newPubKey)).
 		AddOp(txscript.OP_CHECKSIGADD).
 		AddInt64(2).AddOp(txscript.OP_NUMEQUAL).
 		AddOp(txscript.OP_FALSE).
@@ -408,16 +415,41 @@ func (tool *InscriptionTool) completeRevealTx(signNodes []*SignNodeInfo, inscrip
 		var revealTxBuf bytes.Buffer
 		revealTx.Serialize(&revealTxBuf)
 		cm := inscriptions[i].Body
-		signature2, err := sigsdk.SigWithSchnorr([]byte(hex.EncodeToString(cm)), tool.txCtxDataList[i].privateKey2.Serialize(), commitTxBuf.Bytes(), revealTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
-		if err != nil {
-			return err
+		proofH := inscriptions[i].ProofH
+		proofClaimedValue := inscriptions[i].ProofClaimedValue
+		// signature2, err := sigsdk.SigWithSchnorr([]byte(hex.EncodeToString(cm)), tool.txCtxDataList[i].privateKey2.Serialize(), commitTxBuf.Bytes(), revealTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+		// if err != nil {
+		// 	return err
+		// }
+
+		//dasKey, _ := hex.DecodeString("0xbd5064c5be5c91b2c22c616f33d66f6c0f83b93e8c4748d8dfaf37cb9f00d622")
+		dasKey := common.Hex2Bytes("0xbd5064c5be5c91b2c22c616f33d66f6c0f83b93e8c4748d8dfaf37cb9f00d622")
+		log.Println("daskey", dasKey)
+		var daskeyArr [32]byte
+		copy(daskeyArr[:], dasKey)
+		log.Println("dasKeyArr", daskeyArr)
+
+		var signature []byte
+		sigNode := signNodes[0]
+		log.Println("cm: ", hex.EncodeToString(cm))
+		log.Println("daskey: ", hex.EncodeToString(daskeyArr[:]))
+		log.Println("proofH: ", hex.EncodeToString(proofH))
+		log.Println("proofClaimedValue: ", hex.EncodeToString(proofClaimedValue))
+		log.Println("revealTxBuf: ", hex.EncodeToString(revealTxBuf.Bytes()))
+		log.Println("commitTxBuf: ", hex.EncodeToString(commitTxBuf.Bytes()))
+		log.Println("inscriptionScript", hex.EncodeToString(tool.txCtxDataList[i].inscriptionScript))
+
+		originData := make([]byte, 1024)
+		for i := range originData {
+			originData[i] = 1
 		}
 
-		// var signature schnorr.Signature
-		// sigNode := signNodes[0]
-		// sigNode.RpcClient.CallContext(context.Background(), &signature, "signature", []byte(cm), tool.txCtxDataList[i].privateKey2.Serialize(), commitTxBuf.Bytes(), revealTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
-
-		witnessList[i] = wire.TxWitness{signature2, signature1.Serialize(), tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
+		err = sigNode.RpcClient.CallContext(context.Background(), &signature, "eth_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+		if err != nil {
+			log.Println("eth_sendBTCDAByParams", err)
+			return err
+		}
+		witnessList[i] = wire.TxWitness{signature, signature1.Serialize(), tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
 	}
 	for i := range witnessList {
 		if len(tool.revealTx) == 1 {
@@ -536,7 +568,7 @@ func (tool *InscriptionTool) GetRevealTxHexList() ([]string, error) {
 
 func (tool *InscriptionTool) sendRawTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 	if tool.client.rpcClient != nil {
-		return tool.client.rpcClient.SendRawTransaction(tx, false)
+		return tool.client.rpcClient.SendRawTransaction(tx, true)
 	} else {
 		return tool.client.btcApiClient.BroadcastTx(tx)
 	}
