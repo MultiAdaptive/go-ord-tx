@@ -56,7 +56,6 @@ type InscriptionRequest struct {
 }
 
 type inscriptionTxCtxData struct {
-	privateKey              *btcec.PrivateKey
 	inscriptionScript       []byte
 	commitTxAddressPkScript []byte
 	controlBlockWitness     []byte
@@ -151,16 +150,13 @@ func (tool *InscriptionTool) _initTool(net *chaincfg.Params, request *Inscriptio
 }
 
 func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData, signNodes []*SignNodeInfo) (*inscriptionTxCtxData, error) {
-	privateKey, err := btcec.NewPrivateKey()
-	if err != nil {
-		return nil, err
-	}
-
-	nodePubKey := signNodes[0].PublicKey
+	log.Println("len: ", len(signNodes))
+	node0PubKey := signNodes[0].PublicKey
+	node1PubKey := signNodes[1].PublicKey
 	inscriptionBuilder := txscript.NewScriptBuilder().
-		AddData(schnorr.SerializePubKey(privateKey.PubKey())).
+		AddData(schnorr.SerializePubKey(node0PubKey)).
 		AddOp(txscript.OP_CHECKSIG).
-		AddData(schnorr.SerializePubKey(nodePubKey)).
+		AddData(schnorr.SerializePubKey(node1PubKey)).
 		AddOp(txscript.OP_CHECKSIGADD).
 		AddInt64(2).AddOp(txscript.OP_NUMEQUAL).
 		AddOp(txscript.OP_FALSE).
@@ -196,14 +192,14 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData, sign
 		RootNode: leafNode,
 	}
 
-	controlBlock := proof.ToControlBlock(privateKey.PubKey())
+	controlBlock := proof.ToControlBlock(signNodes[0].PublicKey)
 	controlBlockWitness, err := controlBlock.ToBytes()
 	if err != nil {
 		return nil, err
 	}
 
 	tapHash := proof.RootNode.TapHash()
-	commitTxAddress, err := btcutil.NewAddressTaproot(schnorr.SerializePubKey(txscript.ComputeTaprootOutputKey(privateKey.PubKey(), tapHash[:])), net)
+	commitTxAddress, err := btcutil.NewAddressTaproot(schnorr.SerializePubKey(txscript.ComputeTaprootOutputKey(signNodes[0].PublicKey, tapHash[:])), net)
 	if err != nil {
 		return nil, err
 	}
@@ -212,17 +208,16 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData, sign
 		return nil, err
 	}
 
-	recoveryPrivateKeyWIF, err := btcutil.NewWIF(txscript.TweakTaprootPrivKey(*privateKey, tapHash[:]), net, true)
-	if err != nil {
-		return nil, err
-	}
+	// recoveryPrivateKeyWIF, err := btcutil.NewWIF(txscript.TweakTaprootPrivKey(*privateKey, tapHash[:]), net, true)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return &inscriptionTxCtxData{
-		privateKey:              privateKey,
 		inscriptionScript:       inscriptionScript,
 		commitTxAddressPkScript: commitTxAddressPkScript,
 		controlBlockWitness:     controlBlockWitness,
-		recoveryPrivateKeyWIF:   recoveryPrivateKeyWIF.String(),
+		recoveryPrivateKeyWIF:   "",
 	}, nil
 }
 
@@ -387,20 +382,20 @@ func (tool *InscriptionTool) completeRevealTx(signNodes []*SignNodeInfo, inscrip
 	witnessList := make([]wire.TxWitness, len(tool.txCtxDataList))
 	for i := range tool.txCtxDataList {
 		revealTx := tool.revealTx[0]
-		idx := i
-		if len(tool.revealTx) != 1 {
-			revealTx = tool.revealTx[i]
-			idx = 0
-		}
-		witnessArray, err := txscript.CalcTapscriptSignaturehash(txscript.NewTxSigHashes(revealTx, tool.revealTxPrevOutputFetcher),
-			txscript.SigHashDefault, revealTx, idx, tool.revealTxPrevOutputFetcher, txscript.NewBaseTapLeaf(tool.txCtxDataList[i].inscriptionScript))
-		if err != nil {
-			return err
-		}
-		signature1, err := schnorr.Sign(tool.txCtxDataList[i].privateKey, witnessArray)
-		if err != nil {
-			return err
-		}
+		// idx := i
+		// if len(tool.revealTx) != 1 {
+		// 	revealTx = tool.revealTx[i]
+		// 	idx = 0
+		// }
+		// witnessArray, err := txscript.CalcTapscriptSignaturehash(txscript.NewTxSigHashes(revealTx, tool.revealTxPrevOutputFetcher),
+		// 	txscript.SigHashDefault, revealTx, idx, tool.revealTxPrevOutputFetcher, txscript.NewBaseTapLeaf(tool.txCtxDataList[i].inscriptionScript))
+		// if err != nil {
+		// 	return err
+		// }
+		// signature1, err := schnorr.Sign(tool.txCtxDataList[i].privateKey, witnessArray)
+		// if err != nil {
+		// 	return err
+		// }
 
 		var commitTxBuf bytes.Buffer
 		tool.commitTx.Serialize(&commitTxBuf)
@@ -415,8 +410,6 @@ func (tool *InscriptionTool) completeRevealTx(signNodes []*SignNodeInfo, inscrip
 		copy(daskeyArr[:], dasKey)
 		log.Println("dasKeyArr", daskeyArr)
 		originData := inscriptions[i].DataOrigin
-		var signature []byte
-		sigNode := signNodes[0]
 		// log.Println("cm: ", hex.EncodeToString(cm))
 		// log.Println("daskey: ", hex.EncodeToString(daskeyArr[:]))
 		// log.Println("proofH: ", hex.EncodeToString(proofH))
@@ -425,12 +418,19 @@ func (tool *InscriptionTool) completeRevealTx(signNodes []*SignNodeInfo, inscrip
 		// log.Println("commitTxBuf: ", hex.EncodeToString(commitTxBuf.Bytes()))
 		// log.Println("inscriptionScript", hex.EncodeToString(tool.txCtxDataList[i].inscriptionScript))
 
-		err = sigNode.RpcClient.CallContext(context.Background(), &signature, "eth_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+		var signature0 []byte
+		err := signNodes[0].RpcClient.CallContext(context.Background(), &signature0, "eth_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
 		if err != nil {
 			log.Println("eth_sendBTCDAByParams", err)
 			return err
 		}
-		witnessList[i] = wire.TxWitness{signature, signature1.Serialize(), tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
+		var signature1 []byte
+		err = signNodes[1].RpcClient.CallContext(context.Background(), &signature1, "eth_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+		if err != nil {
+			log.Println("eth_sendBTCDAByParams", err)
+			return err
+		}
+		witnessList[i] = wire.TxWitness{signature1, signature0, tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
 	}
 	for i := range witnessList {
 		if len(tool.revealTx) == 1 {
