@@ -150,7 +150,6 @@ func (tool *InscriptionTool) _initTool(net *chaincfg.Params, request *Inscriptio
 }
 
 func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData, signNodes []*SignNodeInfo) (*inscriptionTxCtxData, error) {
-	log.Println("len: ", len(signNodes))
 	node0PubKey := signNodes[0].PublicKey
 	node1PubKey := signNodes[1].PublicKey
 	inscriptionBuilder := txscript.NewScriptBuilder().
@@ -207,11 +206,6 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData, sign
 	if err != nil {
 		return nil, err
 	}
-
-	// recoveryPrivateKeyWIF, err := btcutil.NewWIF(txscript.TweakTaprootPrivKey(*privateKey, tapHash[:]), net, true)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	return &inscriptionTxCtxData{
 		inscriptionScript:       inscriptionScript,
