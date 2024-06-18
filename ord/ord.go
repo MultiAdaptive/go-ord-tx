@@ -250,7 +250,8 @@ func (tool *InscriptionTool) buildEmptyRevealTx(singleRevealTxOnly bool, destina
 			emptySignature := make([]byte, 64)
 			emptyControlBlockWitness := make([]byte, 33)
 			for i := 0; i < total; i++ {
-				fee := (int64(wire.TxWitness{emptySignature, tool.txCtxDataList[i].inscriptionScript, emptyControlBlockWitness}.SerializeSize()+2+3) / 4) * feeRate
+				// now we use 2-2 mul-sig, so here is 2 emptySignatures
+				fee := (int64(wire.TxWitness{emptySignature, emptySignature, tool.txCtxDataList[i].inscriptionScript, emptyControlBlockWitness}.SerializeSize()+2+3) / 4) * feeRate
 				tool.txCtxDataList[i].revealTxPrevOutput = &wire.TxOut{
 					PkScript: tool.txCtxDataList[i].commitTxAddressPkScript,
 					Value:    revealOutValue + eachRevealBaseTxFee + fee,
@@ -272,7 +273,8 @@ func (tool *InscriptionTool) buildEmptyRevealTx(singleRevealTxOnly bool, destina
 			{
 				emptySignature := make([]byte, 64)
 				emptyControlBlockWitness := make([]byte, 33)
-				fee := (int64(wire.TxWitness{emptySignature, tool.txCtxDataList[i].inscriptionScript, emptyControlBlockWitness}.SerializeSize()+2+3) / 4) * feeRate
+				// now we use 2-2 mul-sig, so here is 2 emptySignatures
+				fee := (int64(wire.TxWitness{emptySignature, emptySignature, tool.txCtxDataList[i].inscriptionScript, emptyControlBlockWitness}.SerializeSize()+2+3) / 4) * feeRate
 				prevOutput += fee
 				tool.txCtxDataList[i].revealTxPrevOutput = &wire.TxOut{
 					PkScript: tool.txCtxDataList[i].commitTxAddressPkScript,
