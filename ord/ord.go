@@ -401,10 +401,10 @@ func (tool *InscriptionTool) completeRevealTx(signNodes []*SignNodeInfo, inscrip
 		proofH := inscriptions[i].ProofH
 		proofClaimedValue := inscriptions[i].ProofClaimedValue
 		dasKey := common.Hex2Bytes("0xbd5064c5be5c91b2c22c616f33d66f6c0f83b93e8c4748d8dfaf37cb9f00d622")
-		log.Println("daskey", dasKey)
+		//log.Println("daskey", dasKey)
 		var daskeyArr [32]byte
 		copy(daskeyArr[:], dasKey)
-		log.Println("dasKeyArr", daskeyArr)
+		//log.Println("dasKeyArr", daskeyArr)
 		originData := inscriptions[i].DataOrigin
 		// log.Println("cm: ", hex.EncodeToString(cm))
 		// log.Println("daskey: ", hex.EncodeToString(daskeyArr[:]))
