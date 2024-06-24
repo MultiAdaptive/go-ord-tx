@@ -157,7 +157,7 @@ func createInscriptionTxCtxData(net *chaincfg.Params, data InscriptionData, sign
 		AddOp(txscript.OP_CHECKSIG).
 		AddData(schnorr.SerializePubKey(node1PubKey)).
 		AddOp(txscript.OP_CHECKSIGADD).
-		AddInt64(txscript.OP_2).
+		AddInt64(2).
 		AddOp(txscript.OP_NUMEQUAL).
 		AddOp(txscript.OP_FALSE).
 		AddOp(txscript.OP_IF).
