@@ -416,15 +416,15 @@ func (tool *InscriptionTool) completeRevealTx(signNodes []*SignNodeInfo, inscrip
 		// log.Println("inscriptionScript", hex.EncodeToString(tool.txCtxDataList[i].inscriptionScript))
 
 		var signature0 []byte
-		err := signNodes[0].RpcClient.CallContext(context.Background(), &signature0, "eth_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+		err := signNodes[0].RpcClient.CallContext(context.Background(), &signature0, "mta_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
 		if err != nil {
-			log.Println("eth_sendBTCDAByParams", err)
+			log.Println("mta_sendBTCDAByParams", err)
 			return err
 		}
 		var signature1 []byte
-		err = signNodes[1].RpcClient.CallContext(context.Background(), &signature1, "eth_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
+		err = signNodes[1].RpcClient.CallContext(context.Background(), &signature1, "mta_sendBTCDAByParams", cm, originData, daskeyArr, proofH, proofClaimedValue, revealTxBuf.Bytes(), commitTxBuf.Bytes(), tool.txCtxDataList[i].inscriptionScript)
 		if err != nil {
-			log.Println("eth_sendBTCDAByParams", err)
+			log.Println("mta_sendBTCDAByParams", err)
 			return err
 		}
 		witnessList[i] = wire.TxWitness{signature1, signature0, tool.txCtxDataList[i].inscriptionScript, tool.txCtxDataList[i].controlBlockWitness}
